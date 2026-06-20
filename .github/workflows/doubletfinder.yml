@@ -26,13 +26,16 @@ jobs:
       - name: Install system deps
         run: |
           sudo apt-get update -qq
-          sudo apt-get install -y libhdf5-dev libcurl4-openssl-dev libssl-dev libxml2-dev
+          sudo apt-get install -y libhdf5-dev libcurl4-openssl-dev libssl-dev libxml2-dev libuv1-dev
 
       - name: Install R packages
+        env:
+          GITHUB_PAT: ${{ secrets.GITHUB_TOKEN }}
         run: |
+          install.packages("Matrix", repos = "https://cloud.r-project.org")
           install.packages(c("remotes", "dplyr", "ggplot2", "patchwork"), repos = "https://cloud.r-project.org")
           install.packages(c("Seurat", "harmony"), repos = "https://cloud.r-project.org")
-          remotes::install_github("chris-mcginnis-uoft/DoubletFinder")
+          remotes::install_github("chris-mcginnis-uoft/DoubletFinder", auth_token = Sys.getenv("GITHUB_PAT"))
         shell: Rscript {0}
 
       - name: Prepare data directories
