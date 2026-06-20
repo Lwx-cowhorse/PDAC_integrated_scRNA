@@ -54,8 +54,14 @@ jobs:
         run: |
           options(Ncpus = parallel::detectCores())
 
-          install.packages("Matrix", repos = "https://cloud.r-project.org")
-          install.packages(c("remotes", "dplyr", "ggplot2", "patchwork"), repos = "https://cloud.r-project.org")
+          install.packages("remotes", repos = "https://cloud.r-project.org")
+
+          # 关键修复：CRAN当前Matrix(>=1.7-0)要求 R>=4.4.0，而我们钉死的是R 4.3.2，
+          # 直接 install.packages("Matrix") 会报 "dependency 'Matrix' is not available"，
+          # 进而连带 Seurat/DoubletFinder 一起装不上。CRAN为R 4.3.x保留的最后兼容版本是1.6-5，必须显式钉版本。
+          remotes::install_version("Matrix", version = "1.6-5", repos = "https://cloud.r-project.org", upgrade = "never")
+
+          install.packages(c("dplyr", "ggplot2", "patchwork"), repos = "https://cloud.r-project.org")
           install.packages(c("Seurat", "harmony"), repos = "https://cloud.r-project.org")
 
           remotes::install_github(
