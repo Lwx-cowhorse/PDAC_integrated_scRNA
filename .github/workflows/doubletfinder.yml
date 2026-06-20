@@ -65,8 +65,9 @@ jobs:
           install.packages(c("Seurat", "harmony"), repos = "https://cloud.r-project.org")
 
           remotes::install_github(
-            "chris-mcginnis-uoft/DoubletFinder",
+            "chris-mcginnis-ucsf/DoubletFinder",   # 修复：原来写的 uoft 是错的用户名，正确仓库是 ucsf
             auth_token = Sys.getenv("GITHUB_PAT"),
+            force = TRUE,              # 官方README推荐写法
             upgrade = "never",        # 不要因为DoubletFinder的依赖声明而重新编译已装好的Matrix/Seurat
             dependencies = TRUE,
             build_vignettes = FALSE
