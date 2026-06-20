@@ -82,6 +82,26 @@ jobs:
           cat("DoubletFinder installed:", "DoubletFinder" %in% rownames(installed.packages()), "\n")
         shell: Rscript {0}
 
+      - name: Diagnose data files
+        run: |
+          echo "===== git-lfs 状态 ====="
+          git lfs env || echo "git-lfs 未安装或未启用"
+          echo ""
+          echo "===== git-lfs 追踪的文件列表 ====="
+          git lfs ls-files || echo "(无输出，说明这个仓库里没有任何文件被git-lfs追踪)"
+          echo ""
+          echo "===== 仓库根目录 .rds 文件详情 ====="
+          shopt -s nullglob
+          for f in *.rds; do
+            echo "--- $f ---"
+            ls -lh "$f"
+            file "$f"
+            echo "前200字节(若是LFS指针文件，这里会显示 'version https://git-lfs...' 这样的文本):"
+            head -c 200 "$f" | cat -v
+            echo ""
+            echo ""
+          done
+
       - name: Prepare data directories
         run: |
           mkdir -p result/step2/try2.0
