@@ -55,22 +55,80 @@ obj4 <- qc_filter(obj4, "GSE197177")
 # =========================
 run_df <- function(obj, name, dbl_rate = 0.075) {
 
+  cat("\n============================\n")
+  cat("Dataset:", name, "\n")
+  cat("============================\n")
+
   ncells <- ncol(obj)
-  cat(sprintf("\n%s: %d cells\n", name, ncells))
 
-  obj_sweep <- obj
-  obj_sweep <- NormalizeData(obj_sweep, verbose = FALSE)
-  obj_sweep <- FindVariableFeatures(obj_sweep, nfeatures = 2000, verbose = FALSE)
-  obj_sweep <- ScaleData(obj_sweep, verbose = FALSE)
-  obj_sweep <- RunPCA(obj_sweep, npcs = 30, verbose = FALSE)
-  obj_sweep <- FindNeighbors(obj_sweep, dims = 1:10, verbose = FALSE)
-  obj_sweep <- FindClusters(obj_sweep, resolution = 0.5, verbose = FALSE)
+  # =========================
+  # 1. preprocessing
+  # =========================
+  obj_s <- obj
+  obj_s <- NormalizeData(obj_s, verbose = FALSE)
+  obj_s <- FindVariableFeatures(obj_s, nfeatures = 2000, verbose = FALSE)
+  obj_s <- ScaleData(obj_s, verbose = FALSE)
+  obj_s <- RunPCA(obj_s, npcs = 30, verbose = FALSE)
 
-  sweep_res   <- paramSweep(obj_sweep, PCs = 1:10, sct = FALSE)
+  obj_s <- FindNeighbors(obj_s, dims = 1:10, verbose = FALSE)
+  obj_s <- FindClusters(obj_s, resolution = 0.5, verbose = FALSE)
+
+  # =========================
+  # 2. CLUSTER-AWARE GATE (核心)
+  # =========================
+  cluster_tab <- table(obj_s$seurat_clusters)
+  cat("Cluster distribution:\n")
+  print(cluster_tab)
+
+  # ❗ Gate 1: too few clusters
+  if (length(cluster_tab) < 2) {
+    cat("⚠️ Too few clusters → skip DoubletFinder, fallback singlet\n")
+    obj$DoubletFinder_label <- "Singlet"
+    return(obj)
+  }
+
+  # ❗ Gate 2: cluster too small
+  if (min(cluster_tab) < 10) {
+    cat("⚠️ Small clusters detected → lowering resolution\n")
+    obj_s <- FindClusters(obj_s, resolution = 0.2, verbose = FALSE)
+    cluster_tab <- table(obj_s$seurat_clusters)
+  }
+
+  # ❗ Gate 3: PCA sanity check
+  pca_var <- obj_s[["pca"]]@stdev[1:10]
+  if (mean(pca_var) < 0.5) {
+    cat("⚠️ Weak PCA structure → skip DoubletFinder\n")
+    obj$DoubletFinder_label <- "Singlet"
+    return(obj)
+  }
+
+  # =========================
+  # 3. SAFE paramSweep
+  # =========================
+  sweep_res <- tryCatch({
+    paramSweep(obj_s, PCs = 1:10, sct = FALSE)
+  }, error = function(e) {
+    cat("⚠️ paramSweep failed → skip dataset\n")
+    return(NULL)
+  })
+
+  if (is.null(sweep_res)) {
+    obj$DoubletFinder_label <- "Singlet"
+    return(obj)
+  }
+
   sweep_stats <- summarizeSweep(sweep_res, GT = FALSE)
-  bcmvn       <- find.pK(sweep_stats)
-  pK_opt <- as.numeric(as.character(bcmvn$pK[which.max(bcmvn$BCmetric)]))
+  bcmvn <- find.pK(sweep_stats)
 
+  pK_opt <- as.numeric(as.character(
+    bcmvn$pK[which.max(bcmvn$BCmetric)]
+  ))
+
+  cat("Selected pK:", pK_opt, "\n")
+
+  # =========================
+  # 4. final DF run (SAFE)
+  # =========================
   obj <- NormalizeData(obj, verbose = FALSE)
   obj <- FindVariableFeatures(obj, nfeatures = 2000, verbose = FALSE)
   obj <- ScaleData(obj, verbose = FALSE)
@@ -82,24 +140,23 @@ run_df <- function(obj, name, dbl_rate = 0.075) {
   nExp <- round(ncells * dbl_rate)
   nExp_adj <- round(nExp * (1 - homotypic_prop))
 
-  obj <- doubletFinder(obj,
-                       PCs = 1:10,
-                       pN = 0.25,
-                       pK = pK_opt,
-                       nExp = nExp_adj,
-                       reuse.pANN = NULL,
-                       sct = FALSE)
+  obj <- doubletFinder(
+    obj,
+    PCs = 1:10,
+    pN = 0.25,
+    pK = pK_opt,
+    nExp = nExp_adj,
+    reuse.pANN = NULL,
+    sct = FALSE
+  )
 
   df_col <- grep("^DF\\.classifications", colnames(obj@meta.data), value = TRUE)[1]
-  obj$DoubletFinder_label <- obj@meta.data[[df_col]]
 
-  # ===== scDblFinder fallback（已改为安全版本）=====
-  if (requireNamespace("scDblFinder", quietly = TRUE)) {
-    sce <- as.SingleCellExperiment(obj)
-    sce <- scDblFinder(sce)
-    obj$scDblFinder_label <- sce$scDblFinder.class
+  if (length(df_col) == 0) {
+    cat("❌ DF output missing → fallback singlet\n")
+    obj$DoubletFinder_label <- "Singlet"
   } else {
-    obj$scDblFinder_label <- "Not_Installed"
+    obj$DoubletFinder_label <- obj@meta.data[[df_col]]
   }
 
   return(obj)
