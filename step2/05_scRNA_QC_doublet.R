@@ -121,8 +121,11 @@ run_df <- function(obj, name, dbl_rate = 0.075) {
   cat(sprintf("    nExp=%.0f, nExp_adj=%.0f\n", nExp_poi, nExp_poi_adj))
 
   # Run DoubletFinder
-  obj <- doubletFinder_v3(obj, PCs = 1:10, pN = 0.25, pK = pK_opt,
-                          nExp = nExp_poi_adj, reuse.pANN = FALSE, sct = FALSE)
+  # 注：chris-mcginnis-ucsf/DoubletFinder 当前主分支导出的函数名是 doubletFinder()（无 _v3 后缀）。
+  # reuse.pANN 的"不复用"哨兵值是 NULL，不是 FALSE —— 函数内部用 !is.null(reuse.pANN) 判断，
+  # 传 FALSE 会被当成"非NULL"从而错误地进入"复用已有pANN"分支（seu@meta.data[, FALSE] 取到空列）。
+  obj <- doubletFinder(obj, PCs = 1:10, pN = 0.25, pK = pK_opt,
+                       nExp = nExp_poi_adj, reuse.pANN = NULL, sct = FALSE)
 
   # Extract result
   df_col <- grep("^DF\\.classifications", colnames(obj@meta.data), value = TRUE)[1]
@@ -140,10 +143,10 @@ run_df <- function(obj, name, dbl_rate = 0.075) {
   return(obj)
 }
 
-obj1 <- run_df(obj1, "CRA001160")
-obj2 <- run_df(obj2, "GSE155698")
-obj3 <- run_df(obj3, "GSE154778")
-obj4 <- run_df(obj4, "GSE197177")
+obj1 <- run_df(obj1, "CRA001160", dbl_rate = EXPECTED_DOUBLET_RATE)
+obj2 <- run_df(obj2, "GSE155698", dbl_rate = EXPECTED_DOUBLET_RATE)
+obj3 <- run_df(obj3, "GSE154778", dbl_rate = EXPECTED_DOUBLET_RATE)
+obj4 <- run_df(obj4, "GSE197177", dbl_rate = EXPECTED_DOUBLET_RATE)
 
 # =========================
 # 4. 去除 Doublet 细胞
@@ -170,7 +173,7 @@ cat("\n[5/6] Integration (Harmony)...\n")
 
 objs <- list(obj1, obj2, obj3, obj4)
 objs <- lapply(objs, function(x) {
-  x <- JoinLayers(x, assay = "RNA")
+  x <- JoinLayers(x, assay = "RNA")  # 若每个rds内部本身没有按样本split成多layer，这行基本是空操作；保留无害
   x <- NormalizeData(x, verbose = FALSE)
   x <- FindVariableFeatures(x, selection.method = "vst", nfeatures = 3000, verbose = FALSE)
   return(x)
@@ -188,6 +191,13 @@ combined <- RunHarmony(combined, group.by.vars = "orig.ident", verbose = FALSE)
 combined <- RunUMAP(combined, reduction = "harmony", dims = 1:30, verbose = FALSE)
 combined <- FindNeighbors(combined, reduction = "harmony", dims = 1:30, verbose = FALSE)
 combined <- FindClusters(combined, resolution = 0.5, verbose = FALSE)
+
+# 关键修复：Seurat5的merge()默认保持各数据集的counts/data layer彼此独立(split)，
+# Harmony整合和UMAP/聚类只依赖PCA embedding，split layer也能跑，所以上面几步不会报错；
+# 但下面 AverageExpression() 需要跨样本汇总表达矩阵，必须先把layer合并，否则官方文档
+# 明确要求"做差异表达分析前必须JoinLayers"，不做这一步可能直接报错，或者更隐蔽地
+# 只用到其中一个数据集的layer算出错误的marker score。
+combined <- JoinLayers(combined)
 
 # =========================
 # 6. Cell Type 注释 + 保存
