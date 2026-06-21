@@ -6,7 +6,7 @@
 ## 输出：PDAC_integrated_scRNA.rds（Singlet only, 含 cell_type）
 ##       QC_summary.csv, DF_pK_summary.csv, cluster_celltype_mapping.csv
 ##
-## 运行：Rscript step2/05_scRNA_QC_doublet.R
+## 运行：Rscript 05_scRNA_QC_doublet.R
 ############################################################
 
 library(Seurat)
