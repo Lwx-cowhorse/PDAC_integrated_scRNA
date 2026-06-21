@@ -250,9 +250,7 @@ combined <- FindClusters(combined, resolution = 0.5, verbose = FALSE)
 pre_harmony_mixing <- table(combined$orig.ident, combined$seurat_clusters)
 cat(sprintf("  Pre-Harmony  clusters: %d\n", ncol(pre_harmony_mixing)))
 
-combined <- RunHarmony(combined, group.by.vars = "orig.ident",
-                        reduction = "pca", assay.use = "RNA",
-                        verbose = FALSE)
+combined <- RunHarmony(combined, group.by.vars = "orig.ident", verbose = FALSE)
 
 combined <- RunUMAP(combined, reduction = "harmony", dims = 1:20, verbose = FALSE)
 combined <- FindNeighbors(combined, reduction = "harmony", dims = 1:20, verbose = FALSE)
@@ -356,7 +354,9 @@ if (singleR_ok) {
   cat("\n  Final cell_type (marker-based fallback):\n")
 }
 
-combined$cell_type <- cluster_label_map[as.character(combined$seurat_clusters)]
+cell_type_vec <- cluster_label_map[as.character(combined$seurat_clusters)]
+names(cell_type_vec) <- colnames(combined)
+combined <- AddMetaData(combined, metadata = cell_type_vec, col.name = "cell_type")
 print(table(combined$cell_type))
 
 # Save cluster mapping table
