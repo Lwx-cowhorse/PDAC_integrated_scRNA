@@ -119,14 +119,14 @@ jobs:
           ls -lh result/step2/try2.0/
 
       - name: Run DoubletFinder pipeline
-        run: Rscript step2/05_scRNA_QC_doublet.R
+        run: Rscript 05_scRNA_QC_doublet.R
 
       - name: Upload result
         if: success()
         uses: actions/upload-artifact@v4
         with:
           name: PDAC_integrated_scRNA
-          path: result/step2/try2.0/PDAC_integrated_scRNA.rds
+          path: PDAC_integrated_scRNA.rds
 
       - name: Upload logs on failure
         if: failure()
