@@ -277,8 +277,7 @@ combined <- FindClusters(combined, resolution = 0.5, verbose = FALSE)
 pre_harmony_mixing <- table(combined$orig.ident, combined$seurat_clusters)
 cat(sprintf("  Pre-Harmony  clusters: %d\n", ncol(pre_harmony_mixing)))
 
-combined <- RunHarmony(combined, group.by.vars = "orig.ident",
-                        reduction = "pca", verbose = FALSE)
+combined <- RunHarmony(combined, group.by.vars = "orig.ident", verbose = FALSE)
 
 combined <- RunUMAP(combined, reduction = "harmony", dims = 1:20, verbose = FALSE)
 combined <- FindNeighbors(combined, reduction = "harmony", dims = 1:20, verbose = FALSE)
