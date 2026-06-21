@@ -359,6 +359,14 @@ names(cell_type_vec) <- colnames(combined)
 combined <- AddMetaData(combined, metadata = cell_type_vec, col.name = "cell_type")
 print(table(combined$cell_type))
 
+#★Label remapping: HumanPrimaryCellAtlas 缺少胰腺 CAF/Fibroblast 标签，
+# SingleR 将 CAF 错误映射到最接近的间充质类型，需后处理纠正
+combined$cell_type[combined$cell_type == "Chondrocytes"]      <- "Fibroblast_CAF"
+combined$cell_type[combined$cell_type == "Tissue_stem_cells"] <- "Fibroblast_CAF"
+combined$cell_type[combined$cell_type == "CMP"]               <- "Myeloid_progenitor"
+cat("\n  After remapping:\n")
+print(table(combined$cell_type))
+                             
 # Save cluster mapping table
 cluster_map <- data.frame(
   Cluster = levels(combined$seurat_clusters),
