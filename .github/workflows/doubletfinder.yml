@@ -126,7 +126,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: PDAC_integrated_scRNA
-          path: PDAC_integrated_scRNA.rds
+          path: result/step2/try2.0/PDAC_integrated_scRNA.rds
 
       - name: Upload logs on failure
         if: failure()
